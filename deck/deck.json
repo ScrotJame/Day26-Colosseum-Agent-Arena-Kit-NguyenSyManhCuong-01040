@@ -34,7 +34,7 @@
             "kind": "attack",
             "ask": {
                 "type": "which_day_covers",
-                "concept": "Concept:stategraph",
+                "concept": "Concept:streamable-http",
                 "require": [
                     "course_day",
                     "track",
