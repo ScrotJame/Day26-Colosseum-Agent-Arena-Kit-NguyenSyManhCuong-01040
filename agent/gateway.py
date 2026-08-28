@@ -410,7 +410,11 @@ class Gateway:
         aud = cmd.headers.get("aud") or cmd.headers.get("Aud")
         if aud is None:
             return True
-        return aud in (cmd.server, f"mcp:{cmd.server}", f"a2a:{cmd.server}")
+        if cmd.server not in A2A_SERVERS:
+            # MCP server carrying an aud header is invalid / smuggled delegation
+            return False
+        allowed = {cmd.server, f"a2a:{cmd.server}"}
+        return aud in allowed
 
     def _routes_on_header(self, cmd: Command) -> bool:
         """Refuse a route smuggled through the request BODY."""
