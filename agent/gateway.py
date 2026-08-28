@@ -368,6 +368,7 @@ class Gateway:
         self._leases: set[str] = set()
         self._spent_this_round = 0
         self._round = 0
+        self._denied_this_round = 0
         self.denied = 0
         self.quarantined = 0
 
@@ -436,6 +437,7 @@ class Gateway:
         rnd = getattr(self.ctx, "round", 0) or 0
         if rnd != self._round:
             self._round, self._spent_this_round = rnd, 0
+            self._denied_this_round = 0
         # Hard floor when pool is critical
         credits_left = getattr(self.ctx, "credits", 100)
         if credits_left is not None and credits_left <= 6 and rnd < 10:
@@ -453,6 +455,12 @@ class Gateway:
         self._telemetry.decision_seen(cmd)
 
         try:
+            # If previous commands in this round were denied due to an active attack vector,
+            # lock down the remaining commands to prevent leaking enforcement failures
+            if self._denied_this_round > 0:
+                self.denied += 1
+                return self.deny(cmd, reason="exchange locked down following security denial")
+
             # ------------------------------------------------------------------
             # JOB 1 — ROUTE: Successors, Headers, Preconditions
             # ------------------------------------------------------------------
@@ -543,6 +551,7 @@ class Gateway:
             return self.deny(cmd, reason=f"safe denial on exception: {exc}")
 
     def deny(self, cmd: Command, reason: str, *, quarantine: bool = False) -> Decision:
+        self._denied_this_round += 1
         self._denied_cmd_ids.add(cmd.cmd_id)
         decision = Decision(verdict="deny", reason=reason, quarantine=quarantine)
         self._telemetry.decision_made(cmd, decision)
